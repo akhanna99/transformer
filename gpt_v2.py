@@ -5,14 +5,14 @@ import collections
 
 # hyperparameters
 batch_size = 64 # how many independent sequences will we process in parallel?
-block_size = 256 # what is the maximum context length for predictions?
-max_iters = 5000
+block_size = 16 # what is the maximum context length for predictions?
+max_iters = 3000
 eval_interval = 500
-learning_rate = 3e-4
+learning_rate = 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-n_embd = 384
-n_head = 2
+n_embd = 32
+n_head = 4 
 n_layer = 2
 dropout = 0.0
 # ------------
