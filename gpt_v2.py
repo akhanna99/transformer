@@ -4,15 +4,15 @@ from torch.nn import functional as F
 import collections
 
 # hyperparameters
-batch_size = 64 # how many independent sequences will we process in parallel?
+batch_size = 32 # how many independent sequences will we process in parallel?
 block_size = 16 # what is the maximum context length for predictions?
 max_iters = 3000
 eval_interval = 500
-learning_rate = 1e-3
+learning_rate = 1e-5
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
 n_embd = 32
-n_head = 4 
+n_head = 2
 n_layer = 2
 dropout = 0.0
 # ------------
@@ -23,13 +23,36 @@ torch.manual_seed(1337)
 with open('AliceInWonderland.txt', 'r', encoding='utf-8') as f:
     text = f.read()
 
-words = text.split()
-word_counts = {word: count for word, count in collections.Counter(words).items()}
-unique_words = sorted(word_counts.keys(), key=lambda word: word_counts[word], reverse=True)
-vocab_size = len(unique_words)
-stoi = {word: i for i, word in enumerate(unique_words)}
-itos = {i: word for i, word in enumerate(unique_words)}
-encode = lambda s: [stoi[word] for word in s.split()]
+# words = text.split()
+# word_counts = {word: count for word, count in collections.Counter(words).items()}
+# unique_words = sorted(word_counts.keys(), key=lambda word: word_counts[word], reverse=True)
+# vocab_size = len(unique_words)
+# stoi = {word: i for i, word in enumerate(unique_words)}
+# itos = {i: word for i, word in enumerate(unique_words)}
+# encode = lambda s: [stoi[word] for word in s.split()]
+# decode = lambda l: ' '.join([itos[i] for i in l])
+
+import re
+
+# Split the text into words and special characters
+tokens = re.findall(r"\w+(?:'\w+)?|[^\w\s]", text)
+
+# Get the unique tokens and their counts
+token_counts = {token: count for token, count in collections.Counter(tokens).items()}
+
+# Sort the unique tokens in descending order of their counts
+unique_tokens = sorted(token_counts.keys(), key=lambda token: token_counts[token], reverse=True)
+vocab_size = len(unique_tokens)
+# Create a mapping from tokens to integers
+stoi = {token: i for i, token in enumerate(unique_tokens)}
+
+# Create a mapping from integers to tokens
+itos = {i: token for i, token in enumerate(unique_tokens)}
+
+# Encode a sentence as a list of integers (token indices)
+encode = lambda s: [stoi[token] for token in re.findall(r"\w+(?:'\w+)?|[^\w\s]", s)]
+
+# Decode a list of integers (token indices) back into a sentence
 decode = lambda l: ' '.join([itos[i] for i in l])
 
 # Train and test splits
@@ -196,22 +219,38 @@ print(sum(p.numel() for p in m.parameters())/1e6, 'M parameters')
 # create a PyTorch optimizer
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
-for iter in range(max_iters):
+def train_model(model, optimizer, max_iters, eval_interval):
+    for iter in range(max_iters):
+        # every once in a while evaluate the loss on train and val sets
+        if iter % eval_interval == 0 or iter == max_iters - 1:
+            losses = estimate_loss()
+            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 
-    # every once in a while evaluate the loss on train and val sets
-    if iter % eval_interval == 0 or iter == max_iters - 1:
-        losses = estimate_loss()
-        print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+        # sample a batch of data
+        xb, yb = get_batch('train')
 
-    # sample a batch of data
-    xb, yb = get_batch('train')
+        # evaluate the loss
+        logits, loss = model(xb, yb)
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
 
-    # evaluate the loss
-    logits, loss = model(xb, yb)
-    optimizer.zero_grad(set_to_none=True)
-    loss.backward()
-    optimizer.step()
+# Create and train the model
+model = BigramLanguageModel()
+m = model.to(device)
+optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+train_model(model, optimizer, max_iters, eval_interval)
 
-# generate from the model
+# Separate inference code for generating new tokens
+
+# Generate from the trained model
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decode(m.generate(context, max_new_tokens=2000)[0].tolist()))
+generated_tokens = m.generate(context, max_new_tokens=2000)[0].tolist()
+generated_text = decode(generated_tokens)
+print(generated_text)
+
+# Generate more tokens
+context = torch.tensor(generated_tokens[-block_size:], dtype=torch.long, device=device).unsqueeze(0)
+additional_tokens = m.generate(context, max_new_tokens=20)[0].tolist()
+additional_text = decode(additional_tokens)
+print(additional_text)
