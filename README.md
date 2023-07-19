@@ -31,6 +31,8 @@ As the text file and model path were saved in Google drive, these dependencies w
 * `drive`: Mounting Google Drive in Colab to access files
 * `sys`: Accessing system-specific parameters and functions
 
+**Please Note:** A GPU is required to replicate and train this model. 
+
 ---
 
 ### Example Outputs:
